@@ -4,21 +4,21 @@ import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.minecraft.core.registries.Registries;
-import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.item.Item;
+
+import com.muffin120706.worldweaver.common.worldmodel.WorldBounds;
 
 @Mod(Worldweaver.MODID)
 public class Worldweaver {
@@ -47,6 +47,16 @@ public class Worldweaver {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Worldweaver: server starting");
+        ServerLevel overworld = event.getServer().getLevel(Level.OVERWORLD);
+        if (overworld == null) {
+            LOGGER.warn("Worldweaver: overworld level not found at server start, border not applied");
+            return;
+        }
+
+        overworld.getWorldBorder().setCenter(WorldBounds.CENTER_X, WorldBounds.CENTER_Z);
+        overworld.getWorldBorder().setSize(WorldBounds.SIZE);
+
+        LOGGER.info("Worldweaver: world border set to {} blocks, centered at ({}, {})",
+                WorldBounds.SIZE, WorldBounds.CENTER_X, WorldBounds.CENTER_Z);
     }
 }
