@@ -19,6 +19,11 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import net.minecraft.core.registries.Registries;
 
 import com.muffin120706.worldweaver.common.worldmodel.WorldBounds;
+import com.muffin120706.worldweaver.common.worldmodel.climate.ClimateAxis;
+import com.muffin120706.worldweaver.common.biome.BiomeCatalog;
+import com.muffin120706.worldweaver.common.biome.BiomeClimateEntry;
+
+import java.util.List;
 
 @Mod(Worldweaver.MODID)
 public class Worldweaver {
@@ -58,5 +63,23 @@ public class Worldweaver {
 
         LOGGER.info("Worldweaver: world border set to {} blocks, centered at ({}, {})",
                 WorldBounds.SIZE, WorldBounds.CENTER_X, WorldBounds.CENTER_Z);
+
+        long worldSeed = overworld.getSeed();
+        long climateSeed = worldSeed ^ 0x436C696D6174654CL; // "Climate" salt, arbitrary but fixed
+        ClimateAxis climateAxis = ClimateAxis.fromSeed(climateSeed);
+
+        LOGGER.info("Worldweaver: climate axis angle = {} radians ({} degrees)",
+                climateAxis.angleRadians(), Math.toDegrees(climateAxis.angleRadians()));
+
+        List<BiomeClimateEntry> biomes = BiomeCatalog.collectOverworldBiomes(event.getServer().registryAccess());
+
+        LOGGER.info("Worldweaver: discovered {} Overworld-compatible biomes", biomes.size());
+        for (BiomeClimateEntry entry : biomes) {
+            LOGGER.info("  {} [{}]  temperature={}  downfall={}",
+                    entry.key().location(),
+                    entry.isVanilla() ? "vanilla" : "modded",
+                    entry.temperature(),
+                    entry.downfall());
+        }
     }
 }
