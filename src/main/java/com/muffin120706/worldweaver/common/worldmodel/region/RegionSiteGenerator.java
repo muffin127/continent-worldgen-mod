@@ -11,6 +11,7 @@ import net.minecraft.world.level.biome.Biome;
 import com.muffin120706.worldweaver.common.biome.BiomeClimateEntry;
 import com.muffin120706.worldweaver.common.biome.BiomeFamilies;
 import com.muffin120706.worldweaver.common.biome.BiomeFamily;
+import com.muffin120706.worldweaver.common.biome.OceanClimateOverrides;
 import com.muffin120706.worldweaver.common.worldmodel.WorldBounds;
 import com.muffin120706.worldweaver.common.worldmodel.climate.ClimateAxis;
 import com.muffin120706.worldweaver.common.worldmodel.continent.ContinentShape;
@@ -18,10 +19,10 @@ import com.muffin120706.worldweaver.common.worldmodel.continent.ContinentShape;
 /**
  * Places one primary site per biome family along the climate axis
  * (temperature/downfall -> position), enforcing a minimum separation
- * between primaries of different families (several vanilla biomes share
- * identical temperature/downfall, e.g. desert/savanna/badlands, and would
- * otherwise land on the exact same point). Secondary biomes are then
- * placed as smaller, seed-varied-weight sites near their own primary.
+ * between primaries of different families. Secondary biomes are placed
+ * near their primary; ocean secondaries specifically are placed along the
+ * climate axis using OceanClimateOverrides, since vanilla ocean biomes
+ * mostly share the same getBaseTemperature().
  */
 public final class RegionSiteGenerator {
 
@@ -30,6 +31,7 @@ public final class RegionSiteGenerator {
     private static final double SECONDARY_MAX_OFFSET = 800.0;
     private static final double SECONDARY_MIN_FACTOR = 2.0;
     private static final double SECONDARY_MAX_FACTOR = 4.0;
+    private static final double OCEAN_CLIMATE_SPREAD = 1200.0;
 
     private static final double MIN_PRIMARY_SEPARATION = 900.0;
 
@@ -64,13 +66,20 @@ public final class RegionSiteGenerator {
             sites.add(new RegionSite(family.primary(), primaryPos[0], primaryPos[1], 1.0, true, family.name()));
 
             for (ResourceKey<Biome> secondaryKey : family.secondaries()) {
-                double offsetAngle = rng.nextDouble() * Math.PI * 2.0;
-                double offsetDist = SECONDARY_MIN_OFFSET + rng.nextDouble() * (SECONDARY_MAX_OFFSET - SECONDARY_MIN_OFFSET);
+                double[] secondaryPos;
+                Double oceanRelativeTemp = OceanClimateOverrides.RELATIVE_TEMPERATURE.get(secondaryKey);
 
-                double sx = primaryPos[0] + Math.cos(offsetAngle) * offsetDist;
-                double sz = primaryPos[1] + Math.sin(offsetAngle) * offsetDist;
-
-                double[] secondaryPos = findSecondarySite(sx, sz, continent, family.isOcean());
+                if (oceanRelativeTemp != null) {
+                    double sx = primaryPos[0] + axis.warmDirX() * oceanRelativeTemp * OCEAN_CLIMATE_SPREAD;
+                    double sz = primaryPos[1] + axis.warmDirZ() * oceanRelativeTemp * OCEAN_CLIMATE_SPREAD;
+                    secondaryPos = findSecondarySite(sx, sz, continent, family.isOcean());
+                } else {
+                    double offsetAngle = rng.nextDouble() * Math.PI * 2.0;
+                    double offsetDist = SECONDARY_MIN_OFFSET + rng.nextDouble() * (SECONDARY_MAX_OFFSET - SECONDARY_MIN_OFFSET);
+                    double sx = primaryPos[0] + Math.cos(offsetAngle) * offsetDist;
+                    double sz = primaryPos[1] + Math.sin(offsetAngle) * offsetDist;
+                    secondaryPos = findSecondarySite(sx, sz, continent, family.isOcean());
+                }
 
                 double factor = SECONDARY_MIN_FACTOR + rng.nextDouble() * (SECONDARY_MAX_FACTOR - SECONDARY_MIN_FACTOR);
                 double weight = 1.0 / factor;

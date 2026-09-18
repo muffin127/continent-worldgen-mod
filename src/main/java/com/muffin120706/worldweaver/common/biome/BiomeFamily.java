@@ -20,7 +20,7 @@ public record BiomeFamily(
         List<ResourceKey<Biome>> secondaries,
         boolean isOcean
 ) {
-    private static ResourceKey<Biome> key(String id) {
+    public static ResourceKey<Biome> key(String id) {
         return ResourceKey.create(Registries.BIOME, ResourceLocation.parse(id));
     }
 
