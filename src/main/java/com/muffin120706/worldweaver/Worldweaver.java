@@ -4,9 +4,11 @@ import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -21,10 +23,14 @@ import net.minecraft.core.registries.Registries;
 import com.muffin120706.worldweaver.common.worldmodel.WorldBounds;
 import com.muffin120706.worldweaver.common.worldmodel.climate.ClimateAxis;
 import com.muffin120706.worldweaver.common.worldmodel.continent.ContinentShape;
+import com.muffin120706.worldweaver.common.worldmodel.region.RegionSite;
+import com.muffin120706.worldweaver.common.worldmodel.region.RegionSiteGenerator;
 import com.muffin120706.worldweaver.common.biome.BiomeCatalog;
 import com.muffin120706.worldweaver.common.biome.BiomeClimateEntry;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Mod(Worldweaver.MODID)
 public class Worldweaver {
@@ -61,7 +67,6 @@ public class Worldweaver {
 
         overworld.getWorldBorder().setCenter(WorldBounds.CENTER_X, WorldBounds.CENTER_Z);
         overworld.getWorldBorder().setSize(WorldBounds.SIZE);
-
         LOGGER.info("Worldweaver: world border set to {} blocks, centered at ({}, {})",
                 WorldBounds.SIZE, WorldBounds.CENTER_X, WorldBounds.CENTER_Z);
 
@@ -69,11 +74,15 @@ public class Worldweaver {
 
         long climateSeed = worldSeed ^ 0x436C696D6174654CL;
         ClimateAxis climateAxis = ClimateAxis.fromSeed(climateSeed);
-        LOGGER.info("Worldweaver: climate axis angle = {} radians ({} degrees)",
-                climateAxis.angleRadians(), Math.toDegrees(climateAxis.angleRadians()));
+        LOGGER.info("Worldweaver: climate axis angle = {} degrees", Math.toDegrees(climateAxis.angleRadians()));
 
         List<BiomeClimateEntry> biomes = BiomeCatalog.collectOverworldBiomes(event.getServer().registryAccess());
         LOGGER.info("Worldweaver: discovered {} Overworld-compatible biomes", biomes.size());
+
+        Map<ResourceKey<Biome>, BiomeClimateEntry> climateByKey = new HashMap<>();
+        for (BiomeClimateEntry entry : biomes) {
+            climateByKey.put(entry.key(), entry);
+        }
 
         long continentSeed = worldSeed ^ 0x436F6E74696E656EL;
         ContinentShape continentShape = new ContinentShape(continentSeed);
@@ -89,29 +98,19 @@ public class Worldweaver {
                 }
             }
         }
-        double landFraction = (double) landCount / totalCount;
-        LOGGER.info("Worldweaver: continent sample grid ({} points, step={}) -> land fraction = {}",
-                totalCount, step, landFraction);
-        LOGGER.info("Worldweaver: landValue at spawn (0,0) = {}", continentShape.landValue(0, 0));
+        LOGGER.info("Worldweaver: continent land fraction = {}", (double) landCount / totalCount);
 
-        // Worst-case check: sample a ring close to the border at many angles,
-        // find the highest (most land-like) landValue - this is the real
-        // risk indicator for land touching the border, not just one point.
-        double ringRadius = WorldBounds.HALF_SIZE * 0.98;
-        double maxNearBorder = Double.NEGATIVE_INFINITY;
-        double maxAngleDeg = 0;
-        int ringSamples = 72;
-        for (int i = 0; i < ringSamples; i++) {
-            double angle = 2.0 * Math.PI * i / ringSamples;
-            double x = ringRadius * Math.cos(angle);
-            double z = ringRadius * Math.sin(angle);
-            double value = continentShape.landValue(x, z);
-            if (value > maxNearBorder) {
-                maxNearBorder = value;
-                maxAngleDeg = Math.toDegrees(angle);
-            }
+        long regionSeed = worldSeed ^ 0x5245474945454E44L;
+        List<RegionSite> sites = RegionSiteGenerator.generate(regionSeed, continentShape, climateAxis, climateByKey);
+
+        LOGGER.info("Worldweaver: generated {} region sites", sites.size());
+        for (RegionSite site : sites) {
+            LOGGER.info("  [{}] {} biome={} pos=({}, {}) weight={}",
+                    site.familyName(),
+                    site.primary() ? "PRIMARY" : "secondary",
+                    site.biome().location(),
+                    (int) site.x(), (int) site.z(),
+                    String.format("%.2f", site.weight()));
         }
-        LOGGER.info("Worldweaver: worst-case landValue near border (radius={}, {} angles) = {} at angle {} degrees",
-                ringRadius, ringSamples, maxNearBorder, maxAngleDeg);
     }
 }
